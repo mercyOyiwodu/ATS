@@ -4,24 +4,22 @@ const User = require('../model/user');
 
 const createJob = async (req, res) => {
     try {
-        const { title, description, company, location, salary } = req.body;
-        const userExists = await User.findOne({email: email.toLowerCase()})
+        const { title, description, company, location, salary, jobType } = req.body;
+        const userId = req.user.id || req.user; // extract user id string
+        const userExists = await User.findById(userId);
         if (!userExists) {
             return res.status(404).json({
                 message: "User not found",
             });
         }
-        if(userExists){
-            return res.status(400).json({
-                message: 'user already exists'
-            })
-        }
+        // Remove the incorrect check for userExists that returns 400
         const job = new Job({
             title,
             description,
             company,
             location,
             salary,
+            jobType,
             postedBy: userExists._id
         });
         await job.save();
@@ -32,16 +30,74 @@ const createJob = async (req, res) => {
     } catch (error) {
        res.status(500).json({
         message: "Internal Server Error",
+        error:  error.message
        })
     }
 };
 
 const getJobs = async (req, res) => {
     try {
-        const jobs = await Job.find().populate('postedBy', 'name email');
+        const {
+            jobType,
+            location,
+            minSalary,
+            maxSalary,
+            page = 1,
+            limit = 10,
+            sortBy = 'date' // default sort by date
+        } = req.query;
+
+        // Build filter object
+        const filter = {};
+        if (jobType) {
+            filter.jobType = jobType;
+        }
+        if (location) {
+            filter.location = { $regex: new RegExp(location, 'i') }; // case-insensitive match
+        }
+        if (minSalary || maxSalary) {
+            filter.salary = {};
+            if (minSalary) {
+                filter.salary.$gte = Number(minSalary);
+            }
+            if (maxSalary) {
+                filter.salary.$lte = Number(maxSalary);
+            }
+        }
+
+        // Determine sorting
+        let sortOption = {};
+        if (sortBy === 'salary') {
+            sortOption.salary = -1; // descending salary
+        } else if (sortBy === 'date') {
+            sortOption.createdAt = -1; // newest first
+        }
+
+        // Pagination calculations
+        const pageNumber = parseInt(page, 10) || 1;
+        const limitNumber = parseInt(limit, 10) || 10;
+        const skip = (pageNumber - 1) * limitNumber;
+
+        // Get total count for pagination metadata
+        const totalJobs = await Job.countDocuments(filter);
+
+        // Calculate total pages
+        const totalPages = Math.ceil(totalJobs / limitNumber);
+        const jobs = await Job.find(filter)
+            .sort(sortOption)
+            .skip(skip)
+            .limit(limitNumber)
+            .populate('postedBy', 'name email');
+
+        // Return response with metadata
         res.status(200).json({
             message: "Jobs fetched successfully",
-            jobs
+            jobs,
+            metadata: {
+                totalJobs,
+                totalPages,
+                currentPage: pageNumber
+            }
         });
     } catch (error) {
         res.status(500).json({
@@ -116,11 +172,32 @@ const deleteJob = async (req, res) => {
         });
     }   
 }
-
+const searchJobs = async (req, res) => {
+    try {
+        const { query } = req.query;
+        const jobs = await Job.find({
+            $or: [
+                { title: { $regex: query, $options: 'i' } },
+                { description: { $regex: query, $options: 'i' } },
+                { company: { $regex: query, $options: 'i' } }
+            ]
+        });
+        res.status(200).json({
+            message: "Jobs fetched successfully",
+            jobs
+        });
+    } catch (error) {
+        res.status(500).json({      
+            message: "Internal Server Error",
+            error: error.message
+        });
+    }
+}
 module.exports = {
     createJob,
     getJobs,
     getJobById,
     editJob,
-    deleteJob
+    deleteJob,
+    searchJobs
 };
