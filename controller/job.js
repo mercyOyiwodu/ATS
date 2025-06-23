@@ -25,7 +25,7 @@ const createJob = async (req, res) => {
         await job.save();
         res.status(201).json({
             message: "Job created successfully",
-            job
+            data: job
         }); 
     } catch (error) {
        res.status(500).json({
@@ -44,8 +44,8 @@ const getJobs = async (req, res) => {
             maxSalary,
             page = 1,
             limit = 10,
-            sortBy = 'date' // default sort by date
-        } = req.query;
+            sortBy = 'date'
+                } = req.query;
 
         // Build filter object
         const filter = {};
@@ -53,7 +53,7 @@ const getJobs = async (req, res) => {
             filter.jobType = jobType;
         }
         if (location) {
-            filter.location = { $regex: new RegExp(location, 'i') }; // case-insensitive match
+            filter.location = { $regex: new RegExp(location, 'i') }; 
         }
         if (minSalary || maxSalary) {
             filter.salary = {};
@@ -92,7 +92,7 @@ const getJobs = async (req, res) => {
         // Return response with metadata
         res.status(200).json({
             message: "Jobs fetched successfully",
-            jobs,
+            data: jobs,
             metadata: {
                 totalJobs,
                 totalPages,
@@ -117,7 +117,7 @@ const getJobById = async (req, res) => {
         }
         res.status(200).json({
             message: "Job fetched successfully",
-            job
+            data:job
         });
     } catch (error) {
         res.status(500).json({
@@ -144,7 +144,7 @@ const editJob = async (req, res) => {
         await job.save();
         res.status(200).json({
             message: "Job updated successfully",
-            job
+            data:job
         });
     } catch (error) {
         res.status(500).json({
@@ -184,7 +184,7 @@ const searchJobs = async (req, res) => {
         });
         res.status(200).json({
             message: "Jobs fetched successfully",
-            jobs
+            data: jobs
         });
     } catch (error) {
         res.status(500).json({      
