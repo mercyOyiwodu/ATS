@@ -28,7 +28,6 @@ const applicationSchema = new mongoose.Schema({
     }
 })
 
-// Add unique compound index on jobId and userId to prevent duplicate applications
 applicationSchema.index({ jobId: 1, userId: 1 }, { unique: true });
 
 const Application = mongoose.model('Application', applicationSchema);

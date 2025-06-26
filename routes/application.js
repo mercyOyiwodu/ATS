@@ -3,7 +3,7 @@ const { application, getApplicationWithJobId, myApplication } = require('../cont
 const { protect, isEmployer } = require('../middleware/authentication');
 const { uploadApplicationFiles } = require('../utils/multer');
 
-router.post('/apply/:jobId',uploadApplicationFiles,protect,isEmployer, application);
+router.post('/apply/:jobId',uploadApplicationFiles,protect, application);
 router.get('/jobs/:jobId/applications',protect,isEmployer ,getApplicationWithJobId);
 router.get('/my-applications',protect ,myApplication);
 

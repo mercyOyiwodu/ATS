@@ -1,18 +1,17 @@
 const Job = require('../model/job');    
-const User = require('../model/user');
+const Employer = require('../model/employer');
 
 
 const createJob = async (req, res) => {
     try {
         const { title, description, company, location, salary, jobType } = req.body;
-        const userId = req.user.id || req.user; // extract user id string
-        const userExists = await User.findById(userId);
-        if (!userExists) {
+        const employerId = req.user.id
+        const employerExists = await Employer.findById(employerId);
+        if (!employerExists) {
             return res.status(404).json({
-                message: "User not found",
+                message: "Employer not found",
             });
         }
-        // Remove the incorrect check for userExists that returns 400
         const job = new Job({
             title,
             description,
@@ -20,7 +19,7 @@ const createJob = async (req, res) => {
             location,
             salary,
             jobType,
-            postedBy: userExists._id
+            postedBy: employerExists._id
         });
         await job.save();
         res.status(201).json({
@@ -47,7 +46,6 @@ const getJobs = async (req, res) => {
             sortBy = 'date'
                 } = req.query;
 
-        // Build filter object
         const filter = {};
         if (jobType) {
             filter.jobType = jobType;
@@ -65,23 +63,19 @@ const getJobs = async (req, res) => {
             }
         }
 
-        // Determine sorting
         let sortOption = {};
         if (sortBy === 'salary') {
-            sortOption.salary = -1; // descending salary
+            sortOption.salary = -1; 
         } else if (sortBy === 'date') {
-            sortOption.createdAt = -1; // newest first
+            sortOption.createdAt = -1; 
         }
 
-        // Pagination calculations
         const pageNumber = parseInt(page, 10) || 1;
         const limitNumber = parseInt(limit, 10) || 10;
         const skip = (pageNumber - 1) * limitNumber;
 
-        // Get total count for pagination metadata
         const totalJobs = await Job.countDocuments(filter);
 
-        // Calculate total pages
         const totalPages = Math.ceil(totalJobs / limitNumber);
         const jobs = await Job.find(filter)
             .sort(sortOption)
@@ -89,7 +83,6 @@ const getJobs = async (req, res) => {
             .limit(limitNumber)
             .populate('postedBy', 'name email');
 
-        // Return response with metadata
         res.status(200).json({
             message: "Jobs fetched successfully",
             data: jobs,

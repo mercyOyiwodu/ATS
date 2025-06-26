@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require("express");
 require('./config/database');
 const userRoutes = require('./routes/user');
+const employerRoutes = require('./routes/employer');
 const jobRoutes =require('./routes/job')
 const applicationRoutes = require('./routes/application')
 const cors = require('cors')  
@@ -15,6 +16,7 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/v1', userRoutes);
+app.use('/api/v1', employerRoutes);
 app.use('/api/v1', jobRoutes);
 app.use('/api/v1', applicationRoutes);
 // app.use((err, req, res, next) => {

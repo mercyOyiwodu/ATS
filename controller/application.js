@@ -1,33 +1,20 @@
 const fs = require('fs');
 const Application = require('../model/application');
 const Job = require('../model/job');
+const Employer =require('../model/employer');
 
-const application= async (req, res) => {
+const application = async (req, res) => {
   try {
     const { jobId } = req.params;
-
     const userId = req.user.id || req.user._id || null;
+
     if (!userId) {
-      if (req.files) {
-        if (req.files.resume) {
-          req.files.resume.forEach(file => fs.unlinkSync(file.path));
-        }
-        if (req.files.coverLetter) {
-          req.files.coverLetter.forEach(file => fs.unlinkSync(file.path));
-        }
-      }
+      cleanupFiles(req);
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
     if (!req.files || !req.files.resume || !req.files.coverLetter) {
-      if (req.files) {
-        if (req.files.resume) {
-          req.files.resume.forEach(file => fs.unlinkSync(file.path));
-        }
-        if (req.files.coverLetter) {
-          req.files.coverLetter.forEach(file => fs.unlinkSync(file.path));
-        }
-      }
+      cleanupFiles(req);
       return res.status(400).json({
         message: "Resume and Cover Letter files are required"
       });
@@ -38,28 +25,13 @@ const application= async (req, res) => {
 
     const job = await Job.findById(jobId);
     if (!job) {
-      if (req.files) {
-        if (req.files.resume) {
-          req.files.resume.forEach(file => fs.unlinkSync(file.path));
-        }
-        if (req.files.coverLetter) {
-          req.files.coverLetter.forEach(file => fs.unlinkSync(file.path));
-        }
-      }
-      return res.status(404).json({
-        message: "Job not found"
-      });
+      cleanupFiles(req);
+      return res.status(404).json({ message: "Job not found" });
     }
+
     const existingApplication = await Application.findOne({ jobId, userId });
     if (existingApplication) {
-      if (req.files) {
-        if (req.files.resume) {
-          req.files.resume.forEach(file => fs.unlinkSync(file.path));
-        }
-        if (req.files.coverLetter) {
-          req.files.coverLetter.forEach(file => fs.unlinkSync(file.path));
-        }
-      }
+      cleanupFiles(req);
       return res.status(409).json({
         message: "You have already applied to this job"
       });
@@ -68,23 +40,24 @@ const application= async (req, res) => {
     const application = new Application({
       jobId,
       userId,
-      resume: resumePath,
-      coverLetter: coverLetterPath
+      resumePath: resumePath,          
+      coverLetterPath: coverLetterPath 
     });
+
     await application.save();
+    
+    console.log('Saved application:', {
+      _id: application._id,
+      resumePath: application.resumePath,
+      coverLetterPath: application.coverLetterPath
+    });
+
     res.status(201).json({
       message: "Application created successfully",
       data: application
     });
   } catch (error) {
-    if (req.files) {
-      if (req.files.resume) {
-        req.files.resume.forEach(file => fs.unlinkSync(file.path));
-      }
-      if (req.files.coverLetter) {
-        req.files.coverLetter.forEach(file => fs.unlinkSync(file.path));
-      }
-    }
+    cleanupFiles(req);
     res.status(500).json({
       message: "Internal Server Error",
       error: error.message
@@ -92,23 +65,26 @@ const application= async (req, res) => {
   }
 };
 
-const getApplicationWithJobId= async (req, res) => {
+const getApplicationWithJobId = async (req, res) => {
   try {
     const { jobId } = req.params;
-    const userId = req.user.id || req.user._id || null;
-    if (!userId) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
-    const job =await Job.findById(jobId);
+    const employerId = req.user.id;
     
-    if (!job){
+    const employerExists = await Employer.findById(employerId);
+    if (!employerExists) {
+      return res.status(404).json({ message: "Employer not found" });
+    }
+
+    const job = await Job.findById(jobId);
+    if (!job) {
       return res.status(404).json({ message: "Job not found" });    
     }
 
     const applications = await Application.find({ jobId })
-      .select('resume coverLetter status userId jobId submittedAt')
+      .select('resumePath coverLetterPath status userId jobId submittedAt')
       .populate('jobId', 'title company')
-      .exec();
+      .populate('userId', 'name email') // Added user details
+      .lean();
 
     if (!applications.length) {
       return res.status(404).json({ message: "No applications found" });
@@ -116,7 +92,11 @@ const getApplicationWithJobId= async (req, res) => {
 
     res.status(200).json({
       message: "Applications retrieved successfully",
-      data: applications
+      data: applications.map(app => ({
+        ...app,
+        resumePath: app.resumePath || null, 
+        coverLetterPath: app.coverLetterPath || null
+      }))
     });
   } catch (error) {
     res.status(500).json({
@@ -124,7 +104,7 @@ const getApplicationWithJobId= async (req, res) => {
       error: error.message
     });
   }
-}   
+};
 
 const myApplication = async (req, res) => {
   try {
@@ -134,6 +114,7 @@ const myApplication = async (req, res) => {
     }
 
     const applications = await Application.find({ userId })
+      .select('resumePath coverLetterPath status jobId submittedAt')
       .populate('jobId', 'title company')
       .exec();
 
@@ -151,10 +132,26 @@ const myApplication = async (req, res) => {
       error: error.message
     });
   }
-};  
+};
+
+// Helper function for cleaning up uploaded files
+function cleanupFiles(req) {
+  if (req.files) {
+    if (req.files.resume) {
+      req.files.resume.forEach(file => {
+        try { fs.unlinkSync(file.path); } catch (e) {}
+      });
+    }
+    if (req.files.coverLetter) {
+      req.files.coverLetter.forEach(file => {
+        try { fs.unlinkSync(file.path); } catch (e) {}
+      });
+    }
+  }
+}
 
 module.exports = { 
   application,
   getApplicationWithJobId,
   myApplication
- };
+};
